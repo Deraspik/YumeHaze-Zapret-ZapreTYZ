@@ -1,0 +1,4 @@
+PySide6-Essentials==6.7.3
+shiboken6==6.7.3
+certifi
+pyinstaller>=6.5
