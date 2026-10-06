@@ -22,7 +22,7 @@ from PySide6.QtCore import QObject, Signal
 
 APP_NAME = "ZapreTYZ"          # внутреннее имя (папки, задачи)
 DISPLAY_NAME = "Yume Haze Zapret"
-APP_VERSION = "1.0.2"
+APP_VERSION = "2.0.5"
 
 IS_WIN = os.name == "nt"
 CREATE_NO_WINDOW = 0x08000000 if IS_WIN else 0
@@ -582,13 +582,12 @@ class TgProxy(QObject):
         else:
             cmd = [sys.executable, str(Path(__file__).resolve().parent / "main.py"), "--tgproxy"]
         cmd += ["--host", str(c["host"]), "--port", str(c["port"]), "--secret", c["secret"],
-                "--pool-size", str(c["pool_size"]), "--buf-kb", str(c["buf_kb"])]
+                "--pool-size", str(max(4, int(c["pool_size"] or 0))), "--buf-kb", str(c["buf_kb"])]
         dcs = [d.strip() for d in c["dc_ip"] if d.strip()]
         if dcs:
             for d in dcs:
                 cmd += ["--dc-ip", d]
-        else:
-            cmd += ["--dc-ip"]
+        # пустой список DC->IP в 1.11+ ломает прямое подключение — оставляем стандартные DC
         if c.get("fake_tls_domain"):
             cmd += ["--fake-tls-domain", c["fake_tls_domain"]]
         if not c.get("cfproxy", True):
@@ -603,7 +602,28 @@ class TgProxy(QObject):
             cmd += ["--no-secure"]
         if c.get("verbose"):
             cmd += ["-v"]
-        return cmd
+        return self._filter_flags(cmd)
+
+    @staticmethod
+    def _filter_flags(cmd):
+        """Старые версии tg-ws-proxy знают не все флаги — убираем неподдерживаемые."""
+        try:
+            src = (TG_DIR / "proxy" / "tg_ws_proxy.py").read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            return cmd
+        i = cmd.index("--tgproxy") + 1
+        out = cmd[:i]
+        rest = cmd[i:]
+        j = 0
+        while j < len(rest):
+            a = rest[j]
+            has_val = j + 1 < len(rest) and not rest[j + 1].startswith("-")
+            if a.startswith("-") and f"'{a}'" not in src and f'"{a}"' not in src:
+                j += 2 if has_val else 1
+                continue
+            out.append(a)
+            j += 1
+        return out
 
     def start(self):
         if self.running():
@@ -680,6 +700,7 @@ class Updater(QObject):
     progress = Signal(str, str)           # component, message
     checked = Signal(str, str, str, bool)  # component, local, remote, has_update
     finished = Signal(str, bool, str)      # component, ok, message
+    versions = Signal(str, list)           # component, список тегов (новые сверху)
 
     def __init__(self, zapret: Zapret, tg: TgProxy):
         super().__init__()
@@ -707,22 +728,41 @@ class Updater(QObject):
             self.checked.emit(comp, "", "", False)
             self.progress.emit(comp, f"Ошибка проверки: {e}")
 
-    # --- установка ---
-    def install(self, comp: str):
-        self._bg(self._install, comp)
+    # --- список версий ---
+    def list_versions(self, comp: str):
+        self._bg(self._list_versions, comp)
 
-    def _install(self, comp):
+    def _list_versions(self, comp):
+        try:
+            repo = ZAPRET_REPO if comp == "zapret" else TG_REPO
+            rels = json.loads(http_get(f"https://api.github.com/repos/{repo}/releases?per_page=40"))
+            tags = [r["tag_name"] for r in rels if not r.get("draft")
+                    and (comp != "zapret" or any(a["name"].lower().endswith(".zip") for a in r.get("assets", [])))]
+            self.versions.emit(comp, tags)
+        except Exception as e:
+            self.progress.emit(comp, f"Не удалось получить список версий: {e}")
+
+    # --- установка ---
+    def install(self, comp: str, tag: str | None = None):
+        self._bg(self._install, comp, tag)
+
+    def _rel(self, repo, tag):
+        if tag:
+            return json.loads(http_get(f"https://api.github.com/repos/{repo}/releases/tags/{tag}"))
+        return gh_latest_release(repo)
+
+    def _install(self, comp, tag=None):
         try:
             if comp == "zapret":
-                self._install_zapret()
+                self._install_zapret(tag)
             else:
-                self._install_tg()
-            self.finished.emit(comp, True, "Обновление установлено")
+                self._install_tg(tag)
+            self.finished.emit(comp, True, f"Установлена версия {tag}" if tag else "Обновление установлено")
         except Exception as e:
             self.finished.emit(comp, False, f"Ошибка: {e}")
 
-    def _install_zapret(self):
-        rel = gh_latest_release(ZAPRET_REPO)
+    def _install_zapret(self, tag=None):
+        rel = self._rel(ZAPRET_REPO, tag)
         asset = next(a for a in rel["assets"] if a["name"].lower().endswith(".zip"))
         self.progress.emit("zapret", f"Скачивание {asset['name']}…")
         data = http_get(asset["browser_download_url"], timeout=120)
@@ -745,8 +785,8 @@ class Updater(QObject):
         if was:
             self.z.start(sync=True)
 
-    def _install_tg(self):
-        rel = gh_latest_release(TG_REPO)
+    def _install_tg(self, tag=None):
+        rel = self._rel(TG_REPO, tag)
         self.progress.emit("tg", f"Скачивание исходников {rel['tag_name']}…")
         data = http_get(rel["zipball_url"], timeout=120)
         was = self.t.running()

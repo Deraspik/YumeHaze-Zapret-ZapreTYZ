@@ -17,7 +17,7 @@ a = Analysis(
 )
 # ── уменьшение размера: выкидываем ненужные части Qt ──
 DROP = ("qt6network", "qtnetwork", "opengl32sw", "d3dcompiler", "qt6pdf", "qt6quick", "qt6qml", "qt6opengl", "qt6virtualkeyboard",
-        "translations", "qtvirtualkeyboard", "qwebp", "qtiff", "qgif", "qjpeg", "qicns", "qtga", "qwbmp", "qpdf",
+        "translations", "qtvirtualkeyboard", "qtiff", "qicns", "qtga", "qwbmp", "qpdf",
         "qnetworklistmanager", "qtuiotouchplugin", "libcrypto-3-x64.dll.not", "qminimal", "qoffscreen", "qdirect2d")
 def keep(entry):
     n = entry[0].replace("\\", "/").lower()

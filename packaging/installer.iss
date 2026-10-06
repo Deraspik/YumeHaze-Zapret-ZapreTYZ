@@ -1,6 +1,6 @@
 ﻿; Inno Setup 6 — установщик ZapreTYZ (интерфейс + Zapret + TG WS Proxy)
 #define AppName "Yume Haze Zapret"
-#define AppVersion "1.0.2"
+#define AppVersion "2.0.5"
 #define AppExe "ZapreTYZ.exe"
 
 [Setup]
@@ -47,6 +47,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 [Run]
 Filename: "schtasks"; Parameters: "/Create /F /TN ""ZapreTYZ Autostart"" /SC ONLOGON /RL HIGHEST /DELAY 0000:10 /TR """"""{app}\{#AppExe}"""" --minimized"""; Flags: runhidden; Tasks: autostart
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent shellexec
+Filename: "{app}\{#AppExe}"; Parameters: "--minimized"; Flags: nowait; Check: WizardSilent
 
 [UninstallRun]
 Filename: "taskkill"; Parameters: "/F /IM ZapreTYZ.exe"; Flags: runhidden; RunOnceId: "killapp"

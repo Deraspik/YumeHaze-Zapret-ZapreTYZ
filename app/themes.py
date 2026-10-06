@@ -22,24 +22,66 @@ def amoled(name, a1, a2, tint):
         grad1=_hex(_mix(tint, .17)), grad2=_hex(_mix(tint, .045)), grad3="#000000")
 
 
-THEMES = {
-    "blue":    amoled("Синий",      "#1d4ed8", "#38bdf8", (60, 110, 255)),
-    "cyan":    amoled("Бирюзовый",  "#0e7490", "#2dd4bf", (20, 200, 210)),
-    "purple":  amoled("Фиолетовый", "#6d28d9", "#a78bfa", (140, 80, 255)),
-    "pink":    amoled("Розовый",    "#be185d", "#f472b6", (240, 70, 160)),
-    "red":     amoled("Красный",    "#b91c1c", "#fb7185", (240, 60, 70)),
-    "orange":  amoled("Оранжевый",  "#c2410c", "#fbbf24", (250, 130, 40)),
-    "green":   amoled("Зелёный",    "#15803d", "#4ade80", (40, 210, 110)),
-    "mono":    amoled("Монохром",   "#52525b", "#e4e4e7", (170, 170, 190)),
+ACCENTS = {
+    "red":     ("Красный",        "#b91c1c", "#fb7185", (240, 60, 70)),
+    "orange":  ("Оранжевый",      "#c2410c", "#fbbf24", (250, 130, 40)),
+    "yellow":  ("Жёлтый",         "#a16207", "#fde047", (240, 200, 40)),
+    "green":   ("Зелёный",        "#15803d", "#4ade80", (40, 210, 110)),
+    "emerald": ("Изумрудный",     "#047857", "#34d399", (16, 185, 129)),
+    "cyan":    ("Голубой",        "#0e7490", "#22d3ee", (20, 200, 230)),
+    "blue":    ("Синий",          "#1d4ed8", "#38bdf8", (60, 110, 255)),
+    "purple":  ("Фиолетовый",     "#6d28d9", "#a78bfa", (140, 80, 255)),
+    "pink":    ("Розовый",        "#be185d", "#f472b6", (240, 70, 160)),
+    "sakura":  ("Голубо-розовый", "#38bdf8", "#f472b6", (150, 140, 245)),
+    "mono":    ("Mono",           "#52525b", "#e4e4e7", (170, 170, 190)),
 }
+THEMES = {k: amoled(v[0], v[1], v[2], v[3]) for k, v in ACCENTS.items()}
 ALIASES = {"amoled": "blue", "neon": "blue", "glass": "blue", "ocean": "cyan", "aurora": "purple"}
 
 T = dict(THEMES["blue"])  # активная тема (читается виджетами при отрисовке)
 
 
-def set_theme(key: str):
+def _rgb(h):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def make_theme(base="dark", accent="blue", custom=None, glow=0.5, radius=10):
+    """base: dark/light; accent: ключ ACCENTS или 'custom' (custom = (c1, c2)); glow 0..1."""
+    accent = ALIASES.get(accent, accent)
+    if accent == "custom" and custom:
+        a1, a2 = custom
+        c1, c2 = _rgb(a1), _rgb(a2)
+        tint = tuple((x + y) // 2 for x, y in zip(c1, c2))
+        name = "Свой"
+    else:
+        name, a1, a2, tint = ACCENTS.get(accent, ACCENTS["blue"])
+    t = amoled(name, a1, a2, tint)
+    g = max(0.0, min(1.0, float(glow)))
+    if base == "light":
+        def lt(k):  # светлый оттенок цвета
+            return _hex(tuple(255 - (255 - c) * k for c in tint))
+        t.update(bg="#f6f7fb", side1=lt(.08), side2="#ffffff", sideBorder=lt(.25), card1="#ffffff", card2=lt(.04),
+                 cardBorder=lt(.3), text="#141826", muted="#5b6275", nav="#59607a", navHover=lt(.12),
+                 input="#ffffff", inputBorder=lt(.35), btn="#ffffff", btnBorder=lt(.35), btnHover=lt(.12),
+                 console="#0b0d14", toggleOff=lt(.2), logo=a1, light=True,
+                 grad1=_hex(tuple(255 - (255 - c) * (.08 + .5 * g) for c in _rgb(a1))),
+                 grad2=lt(.03 + .3 * g), grad3=_hex(tuple(255 - (255 - c) * (.02 + .45 * g) for c in _rgb(a2))), glow=(*tint, int(90 * g)))
+    else:
+        c1, c2 = _rgb(a1), _rgb(a2)
+        # плавно: от чёрного (0%) до полной заливки цветами темы (100%)
+        t.update(grad1=_hex(_mix(c1, .06 + .69 * g)), grad2=_hex(_mix(tint, .03 + .47 * g)),
+                 grad3=_hex(_mix(c2, .02 + .43 * g)), glow=(*tint, int(60 * g)), light=False)
+    t["radius"] = int(radius)
+    return t
+
+
+def set_theme(key, **kw):
     T.clear()
-    T.update(THEMES.get(ALIASES.get(key, key), THEMES["blue"]))
+    if kw:
+        T.update(make_theme(accent=key, **kw))
+    else:
+        T.update(THEMES.get(ALIASES.get(key, key), THEMES["blue"]))
 
 
 _QSS = Template("""
@@ -69,6 +111,9 @@ QPushButton { background: $btn; border: 1px solid $btnBorder; border-radius: ${r
               padding: 8px 16px; font-size: 13px; }
 QPushButton:hover { background: $btnHover; border-color: $a1; }
 QPushButton:pressed { background: $input; }
+QPushButton { min-height: 20px; }
+QComboBox, QLineEdit, QSpinBox { min-height: 22px; }
+QPushButton:checked { border: 2px solid $a2; }
 QPushButton:disabled { color: $muted; background: $input; }
 QPushButton#Primary { border: none; font-weight: 600; color: white;
     background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 $a1, stop:1 $a2); }
@@ -134,19 +179,22 @@ def build_qss() -> str:
     if t.get("flat"):
         tr, tg_, tb = t["tint"]
         c = f"{tr},{tg_},{tb}"
+        dk = "255,255,255" if t.get("light") else "0,0,0"
+        cb = "255,255,255" if t.get("light") else "9,11,18"
         q += f"""
-QMainWindow {{ background: #000; }}
-#Sidebar {{ background: rgba(0,0,0,0.25); border-right: 1px solid rgba({c},0.10); }}
+QMainWindow {{ background: {t['bg']}; }}
+#Sidebar {{ background: rgba({dk},0.25); border-right: 1px solid rgba({c},0.10); }}
 QStackedWidget, QScrollArea, #ScrollInner {{ background: transparent; }}
-#Card {{ background: transparent; border: none; border-radius: 0;
-         border-top: 1px solid rgba({c},0.10); }}
-QPlainTextEdit#Console {{ background: rgba(0,0,0,0.35); border: 1px solid rgba({c},0.12); }}
-QComboBox, QLineEdit, QSpinBox {{ background: rgba(0,0,0,0.35); border: 1px solid rgba({c},0.18); }}
+#Card {{ background: qlineargradient(x1:0,y1:0,x2:1,y2:1, stop:0 rgba({c},0.08), stop:0.6 rgba({cb},0.80), stop:1 rgba({cb},0.80));
+         border: 1px solid rgba({c},0.18); border-radius: {t['radius']}px; }}
+#Chip {{ background: rgba({cb},0.70); border: 1px solid rgba({c},0.16); border-radius: {max(4, t['radius'] - 2)}px; }}
+QPlainTextEdit#Console {{ background: rgba(0,0,0,0.55); border: 1px solid rgba({c},0.12); }}
+QComboBox, QLineEdit, QSpinBox {{ background: rgba({dk},0.45); border: 1px solid rgba({c},0.18); }}
 QPushButton {{ background: rgba({c},0.07); border: 1px solid rgba({c},0.18); }}
 QPushButton:hover {{ background: rgba({c},0.16); border-color: {t['a1']}; }}
 QPushButton#Nav {{ border-radius: 8px; border: none; margin: 0; padding: 10px 12px; background: transparent; }}
 QPushButton#Nav:hover {{ background: rgba({c},0.10); }}
-QPushButton#Nav:checked {{ background: rgba({c},0.16); color: white; border: none; }}
+QPushButton#Nav:checked {{ background: rgba({c},0.16); color: {t['text']}; border: none; }}
 QPushButton#Discord {{ background: transparent; }}
 """
     if t["nav_style"] == "minimal":

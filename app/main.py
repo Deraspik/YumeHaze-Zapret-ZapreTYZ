@@ -64,6 +64,13 @@ def main():
         except Exception:
             pass
 
+    try:   # размер интерфейса (применяется при запуске)
+        import json as _j
+        sc = int(_j.loads(core.SETTINGS_FILE.read_text("utf-8")).get("ui_scale", 100))
+        if sc != 100:
+            os.environ["QT_SCALE_FACTOR"] = str(sc / 100)
+    except Exception:
+        pass
     app = QApplication(sys.argv)
     app.setApplicationName(core.APP_NAME)
     app.setQuitOnLastWindowClosed(False)
