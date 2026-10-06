@@ -8,13 +8,13 @@ import webbrowser
 
 from PySide6.QtCore import (Qt, QPropertyAnimation, QEasingCurve, Property, QRectF, QSize,
                             Signal, QTimer, QPointF)
-from PySide6.QtGui import (QColor, QPainter, QLinearGradient, QBrush, QPen, QIcon, QFont,
-                           QTextCursor, QAction, QGuiApplication, QPixmap, QRadialGradient)
+from PySide6.QtGui import (QColor, QPainter, QLinearGradient, QBrush, QPen, QIcon,
+                           QTextCursor, QGuiApplication, QPixmap, QRadialGradient)
 from PySide6.QtWidgets import (QWidget, QMainWindow, QHBoxLayout, QVBoxLayout, QLabel,
                                QPushButton, QComboBox, QStackedWidget, QFrame, QPlainTextEdit,
                                QLineEdit, QSpinBox, QCheckBox, QButtonGroup, QRadioButton,
-                               QSystemTrayIcon, QMenu, QMessageBox, QGridLayout, QSizePolicy,
-                               QScrollArea, QApplication, QTextEdit)
+                               QSystemTrayIcon, QMenu, QMessageBox, QGridLayout,
+                               QScrollArea, QApplication)
 
 import core
 from core import LOG, log
@@ -23,6 +23,8 @@ import zapret_tools as zt
 from themes import T, THEMES, ALIASES, set_theme, build_qss
 
 DISCORD_URL = "https://discord.gg/qHabsmgKVP"
+GITHUB_URL = "https://github.com/Deraspik/YumeHazeZapret---ZapreTYZ/releases/tag/ZapreTYZ"
+GITHUB_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="white" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>'
 DISCORD_SVG = b'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 127.14 96.36"><path fill="white" d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>'''
 
 
@@ -50,6 +52,16 @@ def line_icon(key, color, size=18) -> QIcon:
     QSvgRenderer(svg).render(p)
     p.end()
     pm.setDevicePixelRatio(2)
+    return QIcon(pm)
+
+
+def github_icon(size=18) -> QIcon:
+    from PySide6.QtSvg import QSvgRenderer
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    QSvgRenderer(GITHUB_SVG).render(p)
+    p.end()
     return QIcon(pm)
 
 
@@ -156,6 +168,102 @@ class Card(QFrame):
             s.setObjectName("Muted")
             s.setWordWrap(True)
             self.lay.addWidget(s)
+
+
+BRAND = {"Discord": "#8b5cf6", "YouTube": "#ff3333", "Google": "#4285F4", "Cloudflare": "#f6821f"}
+GOOGLE_G_SVG = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
+                b'<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>'
+                b'<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>'
+                b'<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>'
+                b'<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>')
+
+
+def paint_brand(p: QPainter, g: str, rect: QRectF, alpha=255):
+    """Значок сервиса: цветной кружок (Google — разноцветная «G»)."""
+    p.save()
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setOpacity(alpha / 255)
+    if g == "Google":
+        from PySide6.QtSvg import QSvgRenderer
+        QSvgRenderer(GOOGLE_G_SVG).render(p, rect)
+    else:
+        c = QColor(BRAND.get(g, "#3ddc97"))
+        cx, cy, r = rect.center().x(), rect.center().y(), rect.width() / 2
+        glow = QRadialGradient(QPointF(cx, cy), r)
+        glow.setColorAt(0, c)
+        c2 = QColor(c)
+        c2.setAlpha(0)
+        glow.setColorAt(1, c2)
+        p.setPen(Qt.NoPen)
+        p.setBrush(glow)
+        p.drawEllipse(rect)
+        p.setBrush(c)
+        p.drawEllipse(QPointF(cx, cy), r * 0.45, r * 0.45)
+    p.restore()
+
+
+class BrandDot(QWidget):
+    def __init__(self, group):
+        super().__init__()
+        self.g = group
+        self.setFixedSize(16, 16)
+        self.on = None          # None — не проверялось, True/False — результат
+
+    def set(self, on):
+        self.on = on
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        paint_brand(p, self.g, QRectF(1, 1, 14, 14), 255 if self.on is not False else 90)
+
+
+from PySide6.QtWidgets import QStyledItemDelegate, QStyle  # noqa: E402
+
+
+class StrategyDelegate(QStyledItemDelegate):
+    """Строка выбора стратегии: имя + цветные значки сервисов с результатами ok/всего."""
+    def __init__(self, win, parent=None):
+        super().__init__(parent)
+        self.win = win
+
+    def sizeHint(self, opt, idx):
+        sz = super().sizeHint(opt, idx)
+        sz.setHeight(max(sz.height(), 30))
+        return sz
+
+    def paint(self, p, opt, idx):
+        p.save()
+        r = opt.rect
+        if opt.state & QStyle.State_Selected or opt.state & QStyle.State_MouseOver:
+            c = QColor(T["a1"])
+            c.setAlpha(70)
+            p.fillRect(r, c)
+        p.setPen(QColor("#e6ecff"))
+        name = idx.data()
+        res = self.win.s.data.get("strat_results", {}).get(name + ".bat", {})
+        x = r.right() - 8
+        f = p.font()
+        f.setPointSizeF(max(7.5, f.pointSizeF() - 1))
+        p.setFont(f)
+        fm = p.fontMetrics()
+        for g in reversed(list(zt.QUICK_GROUPS)):
+            if g not in res:
+                continue
+            ok, tot = res[g]
+            txt = f"{ok}/{tot}"
+            w = fm.horizontalAdvance(txt)
+            x -= w
+            p.setPen(QColor("#3ddc97" if ok == tot else ("#ffd166" if ok else "#ff6b8a")))
+            p.drawText(QRectF(x, r.top(), w, r.height()), Qt.AlignVCenter, txt)
+            x -= 16
+            paint_brand(p, g, QRectF(x, r.center().y() - 6, 12, 12), 255 if ok else 110)
+            x -= 10
+        p.setFont(opt.font)
+        p.setPen(QColor("#ffffff" if opt.state & QStyle.State_Selected else "#d4dcf5"))
+        p.drawText(QRectF(r.left() + 10, r.top(), x - r.left() - 10, r.height()), Qt.AlignVCenter, 
+                   p.fontMetrics().elidedText(name, Qt.ElideRight, int(x - r.left() - 10)))
+        p.restore()
 
 
 class GlowDot(QWidget):
@@ -284,6 +392,10 @@ class HomePage(QWidget):
         self.strategy = QComboBox()
         self.strategy.setMinimumHeight(36)
         self.strategy.currentTextChanged.connect(self.on_strategy)
+        self.strategy.setItemDelegate(StrategyDelegate(win, self.strategy))
+        self.strategy.view().setMinimumWidth(460)
+        self.strategy.setToolTip("Цифры рядом со стратегией — результаты прошлых проверок\n"
+                                 "(быстрый тест на главной и подбор во вкладке «Тесты»)")
         zc.lay.addWidget(self.strategy)
         row.addWidget(zc, 1)
 
@@ -354,9 +466,9 @@ class HomePage(QWidget):
             w.setObjectName("Chip")
             wl = QHBoxLayout(w)
             wl.setContentsMargins(12, 8, 12, 8)
-            dot = GlowDot()
+            dot = BrandDot(g)
             wl.addWidget(dot)
-            lb = QLabel(f"<b>{g}</b><br><span style='color:#7c84a0'>—</span>")
+            lb = QLabel(f"<b style='color:{BRAND[g]}'>{g}</b><br><span style='color:#7c84a0'>—</span>")
             wl.addWidget(lb, 1)
             chips.addWidget(w, 1)
             self.q_chips[g] = (dot, lb)
@@ -395,16 +507,19 @@ class HomePage(QWidget):
         self.q_btn.setText("Проверка…")
         self.q_summary.setText("")
         for dot, lb in self.q_chips.values():
-            dot.set(False)
+            dot.set(None)
             lb.setText(lb.text().split("<br>")[0] + "<br><span style='color:#7c84a0'>проверка…</span>")
         self.checker.start()
 
     def on_group(self, g, ok, total, ms):
         dot, lb = self.q_chips[g]
-        dot.set(ok == total)
+        dot.set(ok > 0)
         col = "#3ddc97" if ok == total else ("#ffd166" if ok else "#ff6b8a")
         txt = f"{ok}/{total}" + (f" · {int(ms)} мс" if ok else " · недоступен")
-        lb.setText(f"<b>{g}</b><br><span style='color:{col}'>{txt}</span>")
+        lb.setText(f"<b style='color:{BRAND[g]}'>{g}</b><br><span style='color:{col}'>{txt}</span>")
+        if self.win.zapret.running():
+            zt.save_group_results(self.win.s, self.win.s["strategy"], {g: [ok, total]})
+            self.strategy.update()
         log("app", f"Тест подключения — {g}: {txt}")
 
     def on_quick_done(self, ok, total):
@@ -496,6 +611,9 @@ class ZapretPage(QWidget):
         grid.addWidget(self.gtcp, 1, 0)
         grid.addWidget(self.gudp, 1, 1)
         gc.lay.addLayout(grid)
+        self.skip_valve = QCheckBox("Не пропускать через Zapret CS2 / Dota 2 / Steam (порты 27000–27200) — меньше пинг и фризы")
+        self.skip_valve.setChecked(bool(win.s.data.get("skip_valve", True)))
+        gc.lay.addWidget(self.skip_valve)
         gb = QPushButton("Применить Game Filter")
         gb.setObjectName("Primary")
         gb.clicked.connect(self.apply_game)
@@ -597,6 +715,7 @@ class ZapretPage(QWidget):
                 QMessageBox.warning(self, "Game Filter", f"Неверный формат портов: {v}\nПример: 1024-1934,1936-65535")
                 return
         self.win.zapret.set_game_filter(mode, tcp, udp)
+        self.win.s["skip_valve"] = self.skip_valve.isChecked()
         log("app", f"Game Filter: {mode} (TCP {tcp}, UDP {udp})")
         if self.win.zapret.running():
             self.win.zapret.restart()
@@ -977,6 +1096,13 @@ class UpdatesPage(QWidget):
             c.lay.addLayout(br)
             lay.addWidget(c)
             self.rows[comp] = dict(local=local, remote=remote, status=status, chk=chk, ins=ins)
+        ac = Card(f"{core.DISPLAY_NAME} v{core.APP_VERSION}", "Новые версии самой программы выходят на нашем GitHub.")
+        ab = QPushButton("Открыть GitHub")
+        ab.setObjectName("Primary")
+        ab.setIcon(github_icon(16))
+        ab.clicked.connect(lambda: webbrowser.open(GITHUB_URL))
+        ac.lay.addWidget(ab, 0, Qt.AlignLeft)
+        lay.addWidget(ac)
         allb = QPushButton("Проверить всё")
         allb.clicked.connect(lambda: [self.check(k) for k in self.rows])
         lay.addWidget(allb, 0, Qt.AlignLeft)
@@ -1367,6 +1493,15 @@ class MainWindow(QMainWindow):
         self.dc_btn.setToolTip("Discord-сервер")
         self.dc_btn.clicked.connect(lambda: webbrowser.open(DISCORD_URL))
         sl.addWidget(self.dc_btn)
+        self.gh_btn = QPushButton()
+        self.gh_btn.setObjectName("Nav")
+        self.gh_btn.setProperty("label", "Наш GitHub")
+        self.gh_btn.setIcon(github_icon(18))
+        self.gh_btn.setIconSize(QSize(18, 18))
+        self.gh_btn.setCursor(Qt.PointingHandCursor)
+        self.gh_btn.setToolTip("GitHub — новые версии программы")
+        self.gh_btn.clicked.connect(lambda: webbrowser.open(GITHUB_URL))
+        sl.addWidget(self.gh_btn)
         self.ver = QLabel(f"v{core.APP_VERSION}" + ("" if core.is_admin() or not core.IS_WIN else " ⚠"))
         self.ver.setObjectName("LogoSub")
         self.ver.setAlignment(Qt.AlignCenter)
@@ -1402,7 +1537,7 @@ class MainWindow(QMainWindow):
 
     def apply_sidebar(self, animate=True):
         e = self.expanded
-        for b in list(self.nav.values()) + [self.dc_btn]:
+        for b in list(self.nav.values()) + [self.dc_btn, self.gh_btn]:
             b.setText(("   " + b.property("label")) if e else "")
             b.setStyleSheet("" if e else "text-align: center; padding-left: 0; padding-right: 0;")
         self.menu_btn.setText("   Свернуть" if e else "")
@@ -1522,6 +1657,8 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         a = m.addAction(discord_icon(16), "Discord-сервер")
         a.triggered.connect(lambda: webbrowser.open(DISCORD_URL))
+        a = m.addAction(github_icon(16), "GitHub (новые версии)")
+        a.triggered.connect(lambda: webbrowser.open(GITHUB_URL))
         a = m.addAction("Выход")
         a.triggered.connect(self.quit_app)
         self.tray.setToolTip(f"{core.DISPLAY_NAME}\nZapret: {'вкл' if zon else 'выкл'}\nTG Proxy: {'вкл' if ton else 'выкл'}")

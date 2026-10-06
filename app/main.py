@@ -20,8 +20,16 @@ def _tgproxy_mode():
         enc = Cipher(algorithms.AES(b"k" * 32), modes.CTR(b"i" * 16)).encryptor()
         print("AES OK", enc.update(b"hello").hex())
         return
+    if os.name == "nt":   # прокси — обычный приоритет (интерфейс работает с пониженным)
+        ctypes.windll.kernel32.SetPriorityClass(ctypes.windll.kernel32.GetCurrentProcess(), 0x20)
     sys.argv = ["tg-ws-proxy"] + sys.argv[2:]
-    from proxy.tg_ws_proxy import main as tg_main  # noqa
+    try:
+        from proxy.tg_ws_proxy import main as tg_main  # noqa
+    except Exception as e:      # без всплывающего окна PyInstaller — ошибка уйдёт в консоль программы
+        print(f"✖ TG WS Proxy не запустился: {type(e).__name__}: {e}", flush=True)
+        print("✖ Возможно, новая версия прокси требует библиотеку, которой нет в программе. "
+              "Обновите Yume Haze Zapret.", flush=True)
+        sys.exit(1)
     tg_main()
 
 
@@ -31,7 +39,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "--tgproxy":
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from PySide6.QtCore import Qt, QTimer  # noqa: E402
+from PySide6.QtCore import QTimer  # noqa: E402
 from PySide6.QtGui import QIcon  # noqa: E402
 import socket  # noqa: E402
 import threading  # noqa: E402
@@ -90,6 +98,7 @@ def main():
     icon = QIcon(str(core.ASSETS / "icon.ico"))
     app.setWindowIcon(icon)
 
+    core.set_low_priority()
     s = core.Settings()
     ui.set_theme(s.data.get("theme", "blue"))
     app.setStyleSheet(ui.build_qss())

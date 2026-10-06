@@ -17,7 +17,7 @@ if not exist "%ISCC%" (
 )
 "%ISCC%" packaging\installer.iss || goto :err
 echo.
-echo ГОТОВО: release\ZapreTYZ_Setup_1.0.0.exe
+echo ГОТОВО: release\YumeHazeZapret_Setup_1.0.2.exe
 pause & exit /b 0
 :err
 echo ОШИБКА сборки & pause & exit /b 1

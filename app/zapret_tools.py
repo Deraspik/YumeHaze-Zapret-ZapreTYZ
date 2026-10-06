@@ -286,7 +286,6 @@ class StrategyTester(QObject):
         if was_running:
             self.z.stop(remember=False, sync=True)
             log("zapret", "Zapret временно остановлен на время теста")
-        svc = {"zapret": ""}
         results = []
         total = len(strategies)
         for i, st in enumerate(strategies):
@@ -310,6 +309,14 @@ class StrategyTester(QObject):
                     res = list(ex.map(lambda t: (t[0], *check_url(t[1])), targets))
                 dt = (time.time() - t0) / max(1, len(targets))
                 ok = sum(1 for r in res if r[1])
+                groups = {}
+                for (name, url), r in zip(targets, res):
+                    g = group_of(name, url)
+                    if g:
+                        a = groups.setdefault(g, [0, 0])
+                        a[0] += 1 if r[1] else 0
+                        a[1] += 1
+                save_group_results(self.z.s, st, groups)
                 details = [f"{'✔' if r[1] else '✖'} {r[0]}: {r[2]}" for r in res]
                 results.append((st, ok, len(targets), dt))
                 self.strategy_result.emit(st, ok, len(targets), dt, details)
@@ -347,6 +354,30 @@ QUICK_GROUPS = {
     "Google": ["https://www.google.com", "https://www.gstatic.com"],
     "Cloudflare": ["https://www.cloudflare.com", "https://cdnjs.cloudflare.com"],
 }
+
+
+def group_of(name: str, url: str) -> str | None:
+    """К какому сервису из QUICK_GROUPS относится цель теста."""
+    t = (name + " " + url).lower()
+    if "discord" in t:
+        return "Discord"
+    if any(k in t for k in ("youtube", "ytimg", "googlevideo", "youtu.be")):
+        return "YouTube"
+    if any(k in t for k in ("google", "gstatic")):
+        return "Google"
+    if "cloudflare" in t or "1.1.1.1" in t:
+        return "Cloudflare"
+    return None
+
+
+def save_group_results(settings, strategy: str, groups: dict):
+    """groups = {"Discord": [ok, total], …} — запоминаем для подсказок в выборе стратегии."""
+    if not groups:
+        return
+    allr = settings.data.setdefault("strat_results", {})
+    cur = allr.setdefault(strategy, {})
+    cur.update(groups)
+    settings.save()
 
 
 def probe(url: str, timeout=6) -> tuple[bool, float]:

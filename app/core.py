@@ -22,7 +22,7 @@ from PySide6.QtCore import QObject, Signal
 
 APP_NAME = "ZapreTYZ"          # внутреннее имя (папки, задачи)
 DISPLAY_NAME = "Yume Haze Zapret"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.2"
 
 IS_WIN = os.name == "nt"
 CREATE_NO_WINDOW = 0x08000000 if IS_WIN else 0
@@ -68,6 +68,7 @@ DEFAULTS = {
     "tg_was_on": False,
     "restore_state": True,
     "auto_quick_test": True,
+    "skip_valve": True,
     "tg": {
         "host": "127.0.0.1",
         "port": 1443,
@@ -119,15 +120,90 @@ def run_quiet(cmd, **kw) -> subprocess.CompletedProcess:
                           creationflags=CREATE_NO_WINDOW, **kw)
 
 
+GH_MIRRORS = ["https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/"]
+
+
 def http_get(url: str, timeout=15) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": f"{APP_NAME}/{APP_VERSION}",
-                                               "Cache-Control": "no-cache"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
+    """GET; для github.com / raw.githubusercontent.com при ошибке пробует зеркала."""
+    urls = [url]
+    if url.startswith(("https://github.com/", "https://raw.githubusercontent.com/")):
+        urls += [m + url for m in GH_MIRRORS]
+    err = None
+    for u in urls:
+        try:
+            req = urllib.request.Request(u, headers={"User-Agent": f"{APP_NAME}/{APP_VERSION}",
+                                                     "Cache-Control": "no-cache"})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read()
+        except Exception as e:
+            err = e
+    raise err
 
 
 def gh_latest_release(repo: str) -> dict:
     return json.loads(http_get(f"https://api.github.com/repos/{repo}/releases/latest"))
+
+
+def win_service_state(name: str) -> int:
+    """0 — службы нет, иначе dwCurrentState (1 STOPPED … 4 RUNNING)."""
+    import ctypes
+    from ctypes import wintypes
+    adv = ctypes.WinDLL("advapi32", use_last_error=True)
+    adv.OpenSCManagerW.restype = wintypes.HANDLE
+    adv.OpenServiceW.restype = wintypes.HANDLE
+    adv.OpenServiceW.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, wintypes.DWORD]
+    adv.QueryServiceStatus.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
+    adv.CloseServiceHandle.argtypes = [wintypes.HANDLE]
+    scm = adv.OpenSCManagerW(None, None, 0x0001)          # SC_MANAGER_CONNECT
+    if not scm:
+        return 0
+    try:
+        h = adv.OpenServiceW(scm, name, 0x0004)            # SERVICE_QUERY_STATUS
+        if not h:
+            return 0
+        try:
+            buf = (wintypes.DWORD * 7)()
+            if not adv.QueryServiceStatus(h, ctypes.byref(buf)):
+                return 0
+            return int(buf[1])
+        finally:
+            adv.CloseServiceHandle(h)
+    finally:
+        adv.CloseServiceHandle(scm)
+
+
+def set_low_priority():
+    """Интерфейс — с пониженным приоритетом, чтобы не мешать играм."""
+    if not IS_WIN:
+        return
+    try:
+        import ctypes
+        k = ctypes.windll.kernel32
+        k.SetPriorityClass(k.GetCurrentProcess(), 0x00004000)   # BELOW_NORMAL_PRIORITY_CLASS
+    except Exception:
+        pass
+
+
+# Порты Steam / Valve (CS2, Dota 2, SDR-релеи) — их Zapret не трогает
+VALVE_PORTS = (27000, 27200)
+
+
+def exclude_ports(spec: str, lo: int, hi: int) -> str:
+    out = []
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        a, _, b = part.partition("-")
+        a, b = int(a), int(b or a)
+        if b < lo or a > hi:
+            out.append((a, b))
+            continue
+        if a < lo:
+            out.append((a, lo - 1))
+        if b > hi:
+            out.append((hi + 1, b))
+    return ",".join(f"{a}-{b}" if a != b else str(a) for a, b in out) or "12"
 
 
 def is_admin() -> bool:
@@ -317,6 +393,8 @@ class Zapret(QObject):
         gtcp = gf["tcp"] if mode in ("all", "tcp") else "12"
         gudp = gf["udp"] if mode in ("all", "udp") else "12"
         gany = gf["tcp"] if mode in ("all", "tcp") else (gf["udp"] if mode == "udp" else "12")
+        if self.s.data.get("skip_valve", True):
+            gtcp, gudp, gany = (exclude_ports(x, *VALVE_PORTS) if x != "12" else x for x in (gtcp, gudp, gany))
         repl = {
             "%BIN%": str(self.bin_dir) + "\\",
             "%LISTS%": str(self.lists_dir) + "\\",
@@ -342,20 +420,25 @@ class Zapret(QObject):
             run_quiet(["taskkill", "/F", "/IM", "winws.exe"])
 
     def service_state(self) -> str:
+        """Через WinAPI — без запуска sc.exe (запуск процессов раз в N секунд давал фризы в играх)."""
         if not IS_WIN:
             return "none"
-        out = run_quiet(["sc", "query", self.SERVICE]).stdout
-        if "RUNNING" in out or "START_PENDING" in out:
+        st = win_service_state(self.SERVICE)
+        if st in (2, 4):          # START_PENDING, RUNNING
             return "running"
-        if "STOPPED" in out or "STOP_PENDING" in out:
+        if st in (1, 3):          # STOPPED, STOP_PENDING
             return "stopped"
         return "none"
 
     def service_strategy(self) -> str:
-        out = run_quiet(["reg", "query", rf"HKLM\System\CurrentControlSet\Services\{self.SERVICE}",
-                         "/v", "zapret-discord-youtube"]).stdout
-        m = re.search(r"REG_SZ\s+(.+)", out)
-        return (m.group(1).strip() + ".bat") if m else ""
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                rf"System\CurrentControlSet\Services\{self.SERVICE}") as k:
+                v = winreg.QueryValueEx(k, "zapret-discord-youtube")[0]
+            return (str(v).strip() + ".bat") if v else ""
+        except OSError:
+            return ""
 
     def _set_on(self, on: bool):
         if on != self._on:
@@ -365,7 +448,7 @@ class Zapret(QObject):
     def _poll(self):
         import time as _t
         while True:
-            _t.sleep(4)
+            _t.sleep(5)
             if self._busy:
                 continue
             try:
