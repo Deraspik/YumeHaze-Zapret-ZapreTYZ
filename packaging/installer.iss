@@ -1,6 +1,6 @@
 ﻿; Inno Setup 6 — установщик ZapreTYZ (интерфейс + Zapret + TG WS Proxy)
 #define AppName "Yume Haze Zapret"
-#define AppVersion "2.0.5"
+#define AppVersion "2.0.6"
 #define AppExe "ZapreTYZ.exe"
 
 [Setup]

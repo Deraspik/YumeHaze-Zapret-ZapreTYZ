@@ -319,6 +319,22 @@ def page_header(title, sub):
     return w
 
 
+def trim_memory():
+    """Возвращает Windows неиспользуемую память (когда окно свёрнуто в трей)."""
+    if os.name != "nt":
+        return
+    try:
+        import gc
+        import ctypes
+        gc.collect()
+        from PySide6.QtGui import QPixmapCache
+        QPixmapCache.clear()
+        k = ctypes.windll.kernel32
+        k.SetProcessWorkingSetSize(k.GetCurrentProcess(), ctypes.c_size_t(-1), ctypes.c_size_t(-1))
+    except Exception:
+        pass
+
+
 class RGrid(QWidget):
     """Адаптивная сетка: число колонок зависит от ширины, скрытые элементы пропускаются."""
     def __init__(self, cols=2, min_col=380, spacing=16):
@@ -466,7 +482,7 @@ class HomePage(QWidget):
         lay.setSpacing(16)
         lay.addWidget(page_header("Главная", "Быстрое управление обходом блокировок"))
 
-        row = RGrid(2, 380)
+        row = RGrid(2, 420)
         self._grid = row
 
         # --- Zapret card ---
@@ -595,22 +611,6 @@ class HomePage(QWidget):
         lay.addWidget(qc)
         self.qcard = qc
 
-        # --- игровой режим и авто-восстановление ---
-        gr = RGrid(2, 380)
-        gc = Card("🎮 Игровой режим", "Пока запущена игра, программа замирает: никаких фоновых проверок, "
-                                    "анимаций и уведомлений")
-        self.game_lab = muted("Сейчас: игра не запущена")
-        gc.lay.addWidget(ui2.setting_row("Автоматически", "", ui2.toggle(win, "game_mode", True)))
-        gc.lay.addWidget(self.game_lab)
-        gr.addWidget(gc)
-        ac = Card("🛡 Авто-восстановление", "Раз в 10 минут проверяет Discord и YouTube. Если сервис отвалился, "
-                                          "переключает на следующую лучшую стратегию")
-        self.heal_lab = muted("Ещё не проверялось")
-        ac.lay.addWidget(ui2.setting_row("Включено", "", ui2.toggle(win, "auto_heal", True)))
-        ac.lay.addWidget(self.heal_lab)
-        self.heal_card = ac
-        gr.addWidget(ac)
-        lay.addWidget(gr)
         self.checker = zt.QuickChecker()
         self.checker.group_done.connect(self.on_group)
         self.checker.finished.connect(self.on_quick_done)
@@ -626,7 +626,7 @@ class HomePage(QWidget):
         full.clicked.connect(lambda: self.win.go("console"))
         hdr.addWidget(full)
         cc.lay.addLayout(hdr)
-        self.console = Console(400)
+        self.console = Console(200)
         self.console.setMinimumHeight(170)
         cc.lay.addWidget(self.console, 1)
         lay.addWidget(cc, 1)
@@ -786,7 +786,8 @@ class ZapretPage(QWidget):
         grid.addWidget(self.gtcp, 1, 0)
         grid.addWidget(self.gudp, 1, 1)
         gc.lay.addLayout(grid)
-        self.skip_valve = QCheckBox("Не пропускать через Zapret CS2 / Dota 2 / Steam (порты 27000–27200) — меньше пинг и фризы")
+        self.skip_valve = QCheckBox("Не пропускать CS2 / Dota 2 / Steam (меньше пинг)")
+        self.skip_valve.setToolTip("Порты Valve 27000–27200 идут мимо Zapret — меньше пинг и фризы")
         self.skip_valve.setChecked(bool(win.s.data.get("skip_valve", True)))
         gc.lay.addWidget(self.skip_valve)
         gb = QPushButton("Применить Game Filter")
@@ -952,11 +953,7 @@ class TestsPage(QWidget):
 
         tc = Card("Тест стратегий", "Каждая стратегия запускается по очереди и проверяется доступ к Discord, YouTube, Google, "
                                     "Cloudflare и др. (utils/targets.txt): TLS 1.2, TLS 1.3 и отправка 16 КБ+.")
-        self.list_box = QWidget()
-        self.grid = QGridLayout(self.list_box)
-        self.grid.setContentsMargins(0, 0, 0, 0)
-        self.grid.setHorizontalSpacing(18)
-        self.grid.setVerticalSpacing(4)
+        self.list_box = RGrid(3, 230, 4)
         self.checks = {}
         tc.lay.addWidget(self.list_box)
         sel = QHBoxLayout()
@@ -987,7 +984,7 @@ class TestsPage(QWidget):
         self.results.setReadOnly(True)
         self.results.setMinimumHeight(220)
         tc.lay.addWidget(self.results)
-        br = QHBoxLayout()
+        br = RGrid(2, 300, 8)
         self.best_btn = QPushButton("Применить лучшую стратегию")
         self.best_btn.setObjectName("Primary")
         self.best_btn.setEnabled(False)
@@ -1002,8 +999,7 @@ class TestsPage(QWidget):
         b = QPushButton("Результаты тестов")
         b.clicked.connect(lambda: self.win.open_path(core.ZAPRET_DIR / "utils" / "test results"))
         br.addWidget(b)
-        br.addStretch()
-        tc.lay.addLayout(br)
+        tc.lay.addWidget(br)
         lay.addWidget(tc)
 
         dc = Card("Диагностика", "Проверка BFE, прокси, TCP timestamps, конфликтующих программ (Adguard, Killer, Intel, "
@@ -1039,10 +1035,11 @@ class TestsPage(QWidget):
         for c in self.checks.values():
             c.setParent(None)
         self.checks.clear()
+        self.list_box.items.clear()
         for i, st in enumerate(self.win.zapret.strategies()):
             cb = QCheckBox(st[:-4])
             cb.setChecked(True)
-            self.grid.addWidget(cb, i // 3, i % 3)
+            self.list_box.addWidget(cb)
             self.checks[st] = cb
 
     def import_strategy(self):
@@ -1400,7 +1397,7 @@ class ConsolePage(QWidget):
         bar.addWidget(cp)
         bar.addWidget(cl)
         lay.addLayout(bar)
-        self.console = Console()
+        self.console = Console(800)
         lay.addWidget(self.console, 1)
 
     def set_filter(self, i):
@@ -1546,7 +1543,10 @@ class GradientRoot(QWidget):
         if path != self._bg_path:
             self._bg_path = path
             pm = QPixmap(path) if path else QPixmap()
+            if not pm.isNull() and (pm.width() > 2560 or pm.height() > 1600):
+                pm = pm.scaled(2560, 1600, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
             self.bg = pm if not pm.isNull() else None
+            self._sc = None
 
     def paintEvent(self, e):
         p = QPainter(self)
@@ -1554,7 +1554,10 @@ class GradientRoot(QWidget):
         w, h = self.width(), self.height()
         self.load_bg()
         if self.bg is not None:
-            sc = self.bg.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            if getattr(self, "_sc", None) is None or self._sc_size != (w, h):
+                self._sc = self.bg.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                self._sc_size = (w, h)
+            sc = self._sc
             p.drawPixmap((w - sc.width()) // 2, (h - sc.height()) // 2, sc)
             c = QColor(T["bg"])
             c.setAlpha(int(255 * self.s.data.get("bg_dim", 70) / 100))
@@ -1932,63 +1935,15 @@ class MainWindow(QMainWindow):
         self.tray.show()
 
     def tray_rebuild(self):
-        m = self.tray_menu
-        m.clear()
+        """Только подсказка значка — меню трея строится заново при каждом открытии (без утечек)."""
         zi, ti = self.zapret.installed(), self.tg.installed()
         zon, ton = zi and self.zapret.running(), ti and self.tg.running()
-        a = m.addAction("Открыть окно")
-        a.triggered.connect(self.show_window)
-        m.addSeparator()
-        if zi:
-            a = m.addAction(("✔ " if zon else "   ") + "Zapret")
-            a.triggered.connect(lambda: (self.zapret.stop if self.zapret.running() else self.zapret.start)())
-            sm = m.addMenu("   Стратегия")
-            fav = self.s.data.get("fav", [])
-            sts = self.zapret.strategies()
-            for st in [x for x in sts if x in fav] + [x for x in sts if x not in fav]:
-                mark = "● " if st == self.s["strategy"] else ("★ " if st in fav else "   ")
-                act = sm.addAction(mark + st[:-4] + ("   🏆" if st == self.best else ""))
-                act.setProperty("_ru", act.text())
-                act.triggered.connect(lambda _=False, n=st[:-4]: self.home.strategy.setCurrentText(n))
-        if ti:
-            a = m.addAction(("✔ " if ton else "   ") + "TG WS Proxy")
-            a.triggered.connect(lambda: (self.tg.stop if self.tg.running() else self.tg.start)())
-        if zi:
-            m.addSeparator()
-            ago = ""
-            if self.quick_time:
-                mins = int((time.time() - self.quick_time) / 60)
-                ago = "   (только что)" if mins < 1 else f"   ({mins} мин назад)"
-            a = m.addAction("⚡ Тест подключения" + ago)
-            a.triggered.connect(self.tray_test)
-            for g, (ok, tot) in self.quick_last.items():
-                a = m.addAction(f"      {'✔' if ok == tot else ('◐' if ok else '✖')}  {g}  {ok}/{tot}")
-                a.setEnabled(False)
-            a = m.addAction("   Починить Discord")
-            a.triggered.connect(self.fix_discord)
-            a = m.addAction(("✔ " if self.s.data.get("game_mode", True) else "   ") + "Игровой режим (авто)")
-            a.triggered.connect(lambda: self.s.__setitem__("game_mode", not self.s.data.get("game_mode", True)) or self.tray_rebuild())
-        a = m.addAction(("✔ " if self.s.data.get("widget") else "   ") + "Мини-виджет")
-        a.triggered.connect(lambda: (self.s.__setitem__("widget", not self.s.data.get("widget")), self.set_widget(self.s["widget"])))
-        if ti:
-            a = m.addAction("   Копировать ссылку TG")
-            a.triggered.connect(self.copy_tg_link)
-        m.addSeparator()
-        a = m.addAction(discord_icon(16), "Discord-сервер")
-        a.triggered.connect(lambda: webbrowser.open(DISCORD_URL))
-        a = m.addAction(github_icon(16), "GitHub")
-        a.triggered.connect(lambda: webbrowser.open(GITHUB_URL))
-        a = m.addAction("Выход")
-        a.triggered.connect(self.quit_app)
-        i18n.translate_menu(m)
         tip = [core.DISPLAY_NAME]
         if zi:
             tip.append(f"Zapret: {'вкл · ' + self.s['strategy'][:-4] if zon else 'выкл'}")
         if ti:
             tip.append(f"TG Proxy: {'вкл' if ton else 'выкл'}")
         self.tray.setToolTip(tr("\n".join(tip)))
-        if self.widget:
-            self.widget.update()
 
     def tray_test(self):
         self.home.run_quick()
@@ -2022,6 +1977,7 @@ class MainWindow(QMainWindow):
             return
         e.ignore()
         self.hide()
+        QTimer.singleShot(1500, trim_memory)
         if not self.s.data.get("_tray_hint"):
             self.notify(core.DISPLAY_NAME, "Приложение работает в трее")
             self.s["_tray_hint"] = True
@@ -2051,21 +2007,12 @@ class MainWindow(QMainWindow):
     def _init_v2(self):
         z, t = self.zapret, self.tg
         self.best = F.best_strategy(self.s, z.strategies()) if z.installed() else None
-        z.state_changed.connect(lambda _: self.update_rpc(self.s.data.get("discord_rpc", False)))
         self._rt = QTimer(self)
         self._rt.setSingleShot(True)
         self._rt.timeout.connect(self._do_translate)
-        LOG.line.connect(lambda *_: self.retranslate())
         z.state_changed.connect(lambda _: self.retranslate())
         t.state_changed.connect(lambda _: self.retranslate())
-        # игровой режим: раз в 5 с список процессов через WinAPI (дёшево)
-        self._gt = QTimer(self)
-        self._gt.timeout.connect(self.check_game)
-        self._gt.start(5000)
-        # авто-восстановление
-        self._ht = QTimer(self)
-        self._ht.timeout.connect(self.auto_heal)
-        self._ht.start(10 * 60 * 1000)
+        self.game = None
         # тема по времени / Windows
         self._tt = QTimer(self)
         self._tt.timeout.connect(self._theme_tick)
@@ -2079,17 +2026,6 @@ class MainWindow(QMainWindow):
         i18n.LANG["cur"] = self.s.data.get("lang", "ru")
         self.apply_theme()
         self.apply_components()
-        if self.s.data.get("widget"):
-            self.set_widget(True)
-        # статус Discord: подключается сам, даже если Discord запустили позже программы
-        self._rpc_t = QTimer(self)
-        self._rpc_t.timeout.connect(lambda: self.s.data.get("discord_rpc") and not self.rpc and not self.game
-                                    and self.update_rpc(True))
-        self._rpc_t.start(30000)
-        z.state_changed.connect(lambda _: None)
-        self.home.strategy.currentTextChanged.connect(lambda _: self.update_rpc(self.s.data.get("discord_rpc", False)))
-        if self.s.data.get("discord_rpc"):
-            QTimer.singleShot(3000, lambda: self.update_rpc(True))
         if not self.s.data.get("wizard_done"):
             QTimer.singleShot(700, lambda: (self.show_window(), ui2.Wizard(self).exec()))
 
@@ -2115,7 +2051,9 @@ class MainWindow(QMainWindow):
         self._do_translate()
         self.toast("Язык: русский" if code == "ru" else "Language: English")
 
-    def retranslate(self):
+    def retranslate(self, force=False):
+        if not force and i18n.LANG.get("cur", "ru") == "ru":
+            return
         if hasattr(self, "_rt"):
             self._rt.start(120)
 
@@ -2125,8 +2063,6 @@ class MainWindow(QMainWindow):
     def _do_translate(self):
         i18n.translate(self)
         self.tray_rebuild()
-        if self.widget:
-            self.widget.update()
         for k, (label, _) in self.pages.items():
             b = self.nav[k]
             b.setProperty("label", tr(label))
@@ -2146,7 +2082,6 @@ class MainWindow(QMainWindow):
         self.nav["tg"].setVisible(ti)
         self.home.zcard.setVisible(zi)
         self.home.qcard.setVisible(zi)
-        self.home.heal_card.parentWidget() and self.home.heal_card.setVisible(zi)
         self.home.tcard.setVisible(ti)
         if not hasattr(self, "_nocomp"):
             from PySide6.QtWidgets import QPushButton as _B

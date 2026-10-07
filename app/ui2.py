@@ -142,8 +142,7 @@ class LookPage(QWidget):
         lay.addWidget(c)
 
         c = ui.Card("Цвет", "Значок в трее и ярлыки в цвет темы")
-        g = QGridLayout()
-        g.setSpacing(6)
+        g = _ui().RGrid(6, 70, 10)
         self.sw = QButtonGroup(self)
         items = [(k, v[0], v[1], v[2]) for k, v in ACCENTS.items()]
         cc = s.data.get("custom_colors", ["#22d3ee", "#f472b6"])
@@ -153,10 +152,10 @@ class LookPage(QWidget):
             b.setChecked(s.data.get("theme", "blue") == k)
             b.clicked.connect(lambda _=False, kk=k: self.set_accent(kk))
             self.sw.addButton(b)
-            g.addWidget(b, i // 6, i % 6)
+            g.addWidget(b)
             if k == "custom":
                 self.custom_sw = b
-        c.lay.addLayout(g)
+        c.lay.addWidget(g)
         self.c1 = QPushButton("Цвет 1")
         self.c2 = QPushButton("Цвет 2")
         self.c1.clicked.connect(lambda: self.pick(0))
@@ -276,23 +275,6 @@ class SettingsPage(QWidget):
 
         c = ui.Card("Уведомления")
         c.lay.addWidget(setting_row("Уведомления Windows", "", toggle(win, "notifications", True)))
-        c.lay.addWidget(setting_row("🪟 Мини-виджет", "Плавающая плашка со статусом поверх окон, можно перетаскивать",
-                                    toggle(win, "widget", False, win.set_widget)))
-        lay.addWidget(c)
-
-        c = ui.Card("🎧 Статус в Discord", "В профиле Discord будет видно, что ты используешь Yume Haze Zapret. "
-                                         "Работает, только если Discord запущен")
-        c.lay.addWidget(setting_row("Показывать статус", "", toggle(win, "discord_rpc", False, win.update_rpc)))
-        lay.addWidget(c)
-
-        c = ui.Card("💾 Экспорт и импорт настроек", "Всё в один файл: тема, стратегия, свои сайты, исключения, TG прокси. "
-                                                   "Удобно для переноса на другой ПК или для друга")
-        b1 = QPushButton("Сохранить в файл")
-        b1.setObjectName("Primary")
-        b1.clicked.connect(self.export)
-        b2 = QPushButton("Загрузить из файла")
-        b2.clicked.connect(self.imp)
-        c.lay.addLayout(row(b1, b2))
         lay.addWidget(c)
 
         c = ui.Card("🧙 Мастер первого запуска", "Появляется сам при первом запуске. Можно пройти заново в любой момент")
@@ -1008,11 +990,6 @@ def build_tray_popup(win):
         if win.quick_last:
             m.chips(win.quick_last)
         m.item("Перезапустить Discord", win.fix_discord, check="🔄")
-        m.item("Игровой режим (авто)", lambda: (s.__setitem__("game_mode", not s.data.get("game_mode", True)),
-                                                win.tray_rebuild()),
-               check="✔" if s.data.get("game_mode", True) else "")
-    m.item("Мини-виджет", lambda: (s.__setitem__("widget", not s.data.get("widget")), win.set_widget(s["widget"])),
-           check="✔" if s.data.get("widget") else "")
     if ti:
         m.item("Копировать ссылку TG", win.copy_tg_link, check="🔗")
     m.sep()
@@ -1322,67 +1299,10 @@ def tests_extras(win, page, lay):
     c.lay.addLayout(row(res, add))
     lay.insertWidget(1, c)
 
-    c = ui.Card("📈 Тест скорости YouTube", "Скачивает файлы с серверов YouTube через текущую стратегию "
-                                          "и показывает, какое качество потянет")
-    sp = QLabel("—")
-    sp.setStyleSheet("font-size: 22px; font-weight: 700;")
-    q = ui.muted("")
-    b = QPushButton("Запустить")
-    b.setObjectName("Primary")
-
-    def speed():
-        b.setEnabled(False)
-        sp.setText("…")
-
-        def work():
-            try:
-                mbit, ql = F.youtube_speed()
-                txt, qq = f"{mbit:.1f} Мбит/с", f"Качество: до {ql}"
-                log("app", f"Скорость YouTube: {mbit:.1f} Мбит/с ({ql})")
-            except Exception as e:
-                txt, qq = "✖", f"YouTube недоступен: {type(e).__name__}"
-            F.ui(lambda: (sp.setText(txt), q.setText(qq), b.setEnabled(True), win.retranslate()))
-        F.bg(work)
-    b.clicked.connect(speed)
-    c.lay.addLayout(row(sp, q))
-    c.lay.addLayout(row(b))
-    lay.insertWidget(2, c)
-
-    c = ui.Card("📜 История тестов", "Как работали стратегии по дням — видно, когда провайдер что-то поменял")
-    tbl = QTableWidget(0, 7)
-    tbl.setHorizontalHeaderLabels(["Когда", "Тест", "Стратегия", "Discord", "YouTube", "Google", "Cloudflare"])
-    tbl.verticalHeader().hide()
-    tbl.setEditTriggers(QTableWidget.NoEditTriggers)
-    tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-    tbl.setMinimumHeight(220)
-    tbl.setStyleSheet(f"QTableWidget {{ background: transparent; border: 1px solid {T['cardBorder']}; gridline-color: {T['cardBorder']}; }}"
-                      f"QHeaderView::section {{ background: transparent; border: none; color: {T['muted']}; padding: 4px; }}")
-    clr = QPushButton("Очистить историю")
-    clr.clicked.connect(lambda: (win.s.__setitem__("test_history", []), fill()))
-
-    def fill():
-        h = win.s.data.get("test_history", [])
-        tbl.setRowCount(len(h))
-        for i, e in enumerate(h):
-            vals = [e["t"], e["kind"], e["strategy"]]
-            for g in ("Discord", "YouTube", "Google", "Cloudflare"):
-                r = e.get("groups", {}).get(g)
-                vals.append(f"{r[0]}/{r[1]}" if r else (e.get("extra", "") if g == "Discord" and not e.get("groups") else ""))
-            for j, v in enumerate(vals):
-                it = QTableWidgetItem(v)
-                if j >= 3 and "/" in v:
-                    a, b_ = v.split("/")[:2]
-                    it.setForeground(QColor("#3ddc97" if a == b_ else ("#ffd166" if a != "0" else "#ff6b8a")))
-                tbl.setItem(i, j, it)
-        win.retranslate()
-    page.fill_history = fill
-    c.lay.addWidget(tbl)
-    c.lay.addLayout(row(clr))
-    lay.addWidget(c)
-    fill()
+    page.fill_history = lambda: None
 
     c = ui.Card("Консоль", "Вывод winws.exe и тестов в реальном времени")
-    page.console = ui.Console(1500)
+    page.console = ui.Console(300)
     page.console.setMinimumHeight(200)
     c.lay.addWidget(page.console)
     lay.addWidget(c)

@@ -22,7 +22,7 @@ from PySide6.QtCore import QObject, Signal
 
 APP_NAME = "ZapreTYZ"          # внутреннее имя (папки, задачи)
 DISPLAY_NAME = "Yume Haze Zapret"
-APP_VERSION = "2.0.5"
+APP_VERSION = "2.0.6"
 
 IS_WIN = os.name == "nt"
 CREATE_NO_WINDOW = 0x08000000 if IS_WIN else 0

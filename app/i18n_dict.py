@@ -224,6 +224,8 @@ EN = {
 "Устанавливать без вопросов": "Install without asking",
 "Установите Zapret и/или TG WS Proxy во вкладке «Обновления»": "Install Zapret and/or TG WS Proxy in the “Updates” tab",
 "Установить": "Install",
+"Не пропускать CS2 / Dota 2 / Steam (меньше пинг)": "Bypass Zapret for CS2 / Dota 2 / Steam (lower ping)",
+"Порты Valve 27000–27200 идут мимо Zapret — меньше пинг и фризы": "Valve ports 27000–27200 skip Zapret — lower ping and fewer stutters",
 "📌 Версия": "📌 Version",
 "Установить эту версию": "Install this version",
 "Версия:": "Version:",
